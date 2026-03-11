@@ -123,6 +123,7 @@ The trained model was subsequently applied to a virtual library of **1,172,240 c
 - `combined_decoy_EC50_cleaned.csv` – curated training dataset containing:  
   - `SMILES`, `Title`, `Actividad` (binary label)
 - `blind_compounds.csv` – stratified blind test set with the same columns.
+- 'total_tested.csv' - Experimentally tested results for the 75 total compounds discover in our MidWest AviDD SARS-COV2 Nsp13 inhibitor campaign.
 
 ---
 
