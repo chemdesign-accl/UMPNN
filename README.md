@@ -112,22 +112,52 @@ These metrics demonstrate that the graph neural network can reliably distinguish
 The trained model was subsequently applied to a virtual library of **1,172,240 commercial drug-like compounds**, from which it identified **1,866 candidate inhibitors** for further docking and MD-based evaluation.
 
 ---
-
 ## 4. Repository Contents
 
-- `UMPNN.py` – main training and evaluation script implementing:
+- **`UMPNN.py`** – Main training and evaluation script implementing:
   - `MolecularDataset` for SMILES → graph conversion
-  - `InteractionNetwork` (EdgeBlock, NodeBlock, GlobalBlock)
-  - `GNNTrainer` class for k-fold cross-validation, training, and evaluation
-  - Blind-set evaluation and plotting (confusion matrix, ROC curve)
-- `combined_decoy_EC50_cleaned.csv` – curated training dataset containing:  
-  - `SMILES`, `Title`, `Actividad` (binary label)
-- `blind_compounds.csv` – stratified blind test set with the same columns.
-- `total_tested.csv` - Experimentally tested results for the 75 total compounds discover in our MidWest AviDD SARS-COV2 Nsp13 inhibitor campaign.
+  - `InteractionNetwork` architecture (EdgeBlock, NodeBlock, GlobalBlock)
+  - `GNNTrainer` class for k-fold cross-validation, model training, and evaluation
+  - Blind-set evaluation and plotting utilities (confusion matrix, ROC curve)
+
+- **`combined_decoy_EC50_cleaned.csv`** – Curated training dataset containing:
+  - `SMILES`
+  - `Title`
+  - `Actividad` (binary activity label)
+
+- **`blind_compounds.csv`** – Stratified blind test set with the same columns as the training dataset.
+
+- **`total_tested.csv`** – Experimental results for the 75 compounds tested in the Midwest AViDD SARS-CoV-2 **Nsp13 inhibitor discovery campaign**.
 
 ---
 
-## 5. Dependencies
+## 5. Simulation Files
+
+The archive **`Simulations.zip`** contains the input files, scripts, and representative outputs required to reproduce the molecular dynamics simulations and analyses reported in this work.
+
+### Contents
+
+1. **`System-prep-for-sim/`**  
+   Directory containing the parameter files and initial coordinate files used to build the simulation systems.  
+   It also includes the preparation workflow used to generate the final simulation systems starting from the docked poses.
+
+2. **`DBSCAN-clustering.in`**  
+   Input script for **CPPTRAJ** used to perform DBSCAN hierarchical clustering in order to classify the dominant conformational states observed during the simulations.
+
+3. **`DBSCAN_representative_39XX.pdb`**  
+   Representative structures obtained from the DBSCAN clustering analysis for the two primary hit compounds identified in this study.
+
+4. **`FINAL_DECOMP_MMGBSA_39XX.dat`**  
+   Per-residue **MM/GBSA energy decomposition** results derived from the analyzed trajectories of the two hit systems.
+
+5. **`mmpbsa.in`** and **`mmpbsa_recipe.txt`**  
+   Input configuration and protocol used to perform **MM/GBSA calculations in AMBER**, following the procedure described in `mmpbsa_recipe.txt`.
+
+6. **`contacts.py`**  
+   Python script used to extract **protein–ligand contacts within a 5.5 Å cutoff** around the ligand throughout the simulation trajectories.
+---
+
+## 6. Dependencies
 
 The code is written in Python and uses:
 
@@ -146,7 +176,7 @@ Install with `conda` or `pip` as appropriate, making sure that your `torch-geome
 
 ---
 
-## 6. Usage for blind test prediction
+## 7. Usage for blind test prediction
 
 1. Place the CSV files in the working directory:
 
