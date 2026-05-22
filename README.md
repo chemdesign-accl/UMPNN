@@ -1,49 +1,92 @@
-<div align="center" style="font-size: 22px; line-height: 1.25;">
-<pre>
-                         Atom i  ● <───────── ⇄ ─────────> ●  Atom j                          
-                          \                      /                          
-● ──── ⌬ ─── ● ──── ⌬ ─── ●        UMPNN        ● ──── ⌬ ─── ● ──── ⌬ ─── ●
-                          /                      \                          
-                         Atom j  ● <───────── ⇄ ─────────> ●  Atom i                          
+# UMPNN: Undirected Message-Passing Neural Network
 
-</pre>
+This folder contains the code and tabular data used for the UMPNN graph neural
+network workflow developed for SARS-CoV-2 nsp13 inhibitor prediction.
 
-</div>
+The model represents each molecule as an undirected molecular graph and combines
+atom-level, bond-level, and whole-molecule descriptor features to classify
+compounds as active or inactive nsp13 inhibitor candidates.
 
-# **UMPNN: Undirected Message-Passing Neural Network**
+## Folder Contents
 
-### Architecture used for Molecular Prediction of Nsp13 Inhibition
+| File | Description |
+| --- | --- |
+| `UMPNN.py` | Main Python script for training and evaluating the undirected message-passing neural network. The script reads `training_dataset.csv`, builds molecular graphs from SMILES strings, creates a Bemis-Murcko scaffold train/test split, trains the model, evaluates scaffold-test performance, and writes plots and diagnostic reports. |
+| `training_dataset.csv` | Curated model dataset with 2,619 molecules. It contains compound identifiers, SMILES, binary activity labels, activity values, activity uncertainty, and activity-source metadata. |
+| `total_tested.csv` | Experimental testing table for 75 selected compounds. It includes molecule IDs, screening round, SMILES, selectivity index, physicochemical properties, A549-hACE2 cytotoxicity, CPE EC50, nLuc EC50, nsp13 unwinding EC50, and Vero76 cytotoxicity results. |
+| `Simulations.zip` | Molecular dynamics simulation archive. Include this archive in the upload when sharing the simulation setup, analysis scripts, and representative outputs described below. |
 
-This repository contains a Message-Passing Neural Network (MPNN) used to classify small molecules as **active** or **inactive** inhibitors of the SARS-CoV-2 helicase Nsp13. The model operates directly on molecular graphs using a symmetric adjacency matrix to create undirection and integrates **atom-, bond-, and global-level features** to capture both local chemistry and overall drug-like properties.
+When `UMPNN.py` is run, it creates a `Plots/` directory containing training
+metadata, scaffold-test plots, similarity diagnostics, and model evaluation
+reports.
 
-This architecture was coupled to a stucture-based funnel-like virtual screening protocol and allowed us to identify two compounds with IC50 < 600 nm and 17 compounds with IC50 < 10 μM in cell-based nLuc essays, , underscoring the strong predictive power and practical utility of the workflow.
+## Model Overview
 
----
+UMPNN uses a graph-network style architecture implemented with PyTorch
+Geometric's `MetaLayer`. The model contains three message-passing blocks:
 
-## 1. Method Overview
+- `EdgeBlock`: updates bond features using source atom, destination atom, and
+  current edge attributes.
+- `NodeBlock`: updates atom features by aggregating incoming edge messages.
+- `GlobalBlock`: pools atom features across the molecular graph and combines
+  them with global molecular descriptors before binary classification.
 
-### Training Data
+The graph is treated as undirected by adding both directions for each covalent
+bond.
 
-- **Curated labeled dataset:** 2,700 compounds  
-  - Primary labels from **titration assays** measuring Nsp13 unwinding inhibition.  
-  - Augmented with a **small subset of nanoluciferase (nLuc) cell-based EC₅₀ values** used to refine activity labels.
-- **Binary labels:**  
-  - 1 = active (EC₅₀ below activity threshold set to 15 μM)  
-  - 0 = inactive / decoy  
+## Molecular Features
 
-A **blind test set comprising 20% of the data** was constructed by **stratified sampling**, preserving the class balance of actives and inactives.
+The model uses three feature groups:
 
-### Model Architecture
+- Atom features: atomic number, explicit degree, aromaticity, explicit valence,
+  and hybridization.
+- Bond features: bond length, bond type, conjugation, and ring-size encoding.
+- Global molecular descriptors: heavy atom count, ring count, stereocenter
+  count, hydrogen-bond donors, rotatable bonds, TPSA, logP, fraction sp3
+  carbons, and radius of gyration.
 
-The model is implemented as a **three-block MetaLayer**[1] :
+RDKit is used for molecule parsing, descriptor calculation, conformer
+generation, and Bemis-Murcko scaffold extraction.
 
-- **EdgeBlock:** updates bond features from source/destination node features and edge attributes.
-- **NodeBlock:** updates node features by aggregating incoming edge messages via `scatter(..., reduce='max')`.
-- **GlobalBlock:** performs `global_max_pool` over node features and concatenates them with **global molecular descriptors**, followed by an MLP that outputs a single logit (binary classification).
+## Dataset Columns
 
-All blocks use **Batch Normalization**, **ReLU**, and **Dropout** to improve stability and generalization.
+### `training_dataset.csv`
 
-Key hyperparameters (current configuration):
+Important columns include:
+
+- `Title`: compound identifier used by the model.
+- `AviDD ID`: AViDD/MWAC identifier when available.
+- `SMILES`: molecular structure used to construct the graph.
+- `Label`: binary activity label, where `1` is active and `0` is inactive.
+- `Activity_Value`, `Activity_Units`, `Activity_SD`, and `Activity_SE`:
+  activity measurement and uncertainty metadata.
+- `Activity_Source`: source or assay category used to define the activity
+  measurement.
+
+Activity classes were binarized using assay-specific thresholds. Cell-based
+activity values were labeled active below 15 µM. HTS measurements were labeled
+active above the 22.29 ± SE threshold.
+
+### `total_tested.csv`
+
+Important columns include:
+
+- `Molecule`: tested molecule identifier.
+- `Round`: experimental selection/testing round.
+- `SMILES`: molecular structure.
+- `A549-hACE2_Cytotoxicity: CC50 (µM)`: A549-hACE2 cytotoxicity.
+- `CPE EC50 (µM)`: cytopathic-effect protection potency.
+- `nLuc EC50 (µM)`: nanoluciferase assay potency.
+- `P5_SARS-CoV2_nsp13-dsRNA unwinding: EC50 (µM)`: biochemical nsp13
+  unwinding assay potency.
+- `P5_Vero76_Cytotoxicity: CC50 (µM)`: Vero76 cytotoxicity.
+
+Some experimental entries use text such as `> 50.00` or
+`(CC50 could not be calculated)` to record assay limits or unavailable values.
+
+## Main Parameters
+
+The current script configuration is defined near the top of `UMPNN.py`:
 
 - Hidden dimension: `400`
 - Batch size: `248`
@@ -51,118 +94,57 @@ Key hyperparameters (current configuration):
 - Learning rate: `3.28e-4`
 - Weight decay: `3.29e-2`
 - Dropout: `0.25`
-- Loss: `BCEWithLogitsLoss`
-- Optimizer: `Adam`
-- 5-fold cross-validation
-- 
-[1] Peter W. Battaglia, Jessica B. Hamrick, et. al., Relational inductive biases, deep learning, and graph networks, 2018. URL https://arxiv.org/abs/1806.01261
+- Scaffold test fraction: `0.20`
+- Classification threshold: `0`
+- Cross-validation setting retained in the trainer: `5` folds
 
----
+## Outputs
 
-## 2. Molecular Features
+Running the script writes outputs to `Plots/`, including:
 
-The network uses **three levels of features**:
+- `hyperparameters.json`
+- `logfile.log`
+- `conf_matrix.png`
+- `roc_auc_scaffold_test_set.png`
+- `train_test_tanimoto_summary.json`
+- Scaffold-test train/evaluation Tanimoto overlap CSV files
+- Similarity-bin and similarity-threshold performance CSV files
+- Active/decoy similarity reports and histograms
 
-### Global Features (per-molecule)
+The script also writes `3_metrics.png` and `validation_roc_plot.png` if the
+corresponding plotting methods are called.
 
-Global descriptors are computed with RDKit and **min–max normalized** (or scaled as indicated). Only weakly correlated properties (pairwise |r| < 0.85) were retained to provide complementary information:
+## Simulation Files
 
-1. Number of heavy atoms  
-2. Ring count (scaled by `/6`)  
-3. Number of stereocenters (scaled by `/5`)  
-4. Number of H-bond donors  
-5. Number of rotatable bonds  
-6. TPSA  
-7. logP  
-8. Fraction sp³ carbons  
-9. Radius of gyration (3D compactness)
+The archive `Simulations.zip` contains the input files, scripts, and
+representative outputs required to reproduce the molecular dynamics simulations
+and analyses reported in this work.
 
-### Atom Features
+Contents:
 
-For each non-hydrogen atom:
+- `System-prep-for-sim/`: directory containing the parameter files and initial
+  coordinate files used to build the simulation systems. It also includes the
+  preparation workflow used to generate the final simulation systems starting
+  from the docked poses.
+- `DBSCAN-clustering.in`: input script for CPPTRAJ used to perform DBSCAN
+  hierarchical clustering in order to classify the dominant conformational
+  states observed during the simulations.
+- `DBSCAN_representative_39XX.pdb`: representative structures obtained from the
+  DBSCAN clustering analysis for the two primary hit compounds identified in
+  this study.
+- `FINAL_DECOMP_MMGBSA_39XX.dat`: per-residue MM/GBSA energy decomposition
+  results derived from the analyzed trajectories of the two hit systems.
+- `mmpbsa.in` and `mmpbsa_recipe.txt`: input configuration and protocol used to
+  perform MM/GBSA calculations in AMBER, following the procedure described in
+  `mmpbsa_recipe.txt`.
+- `contacts.py`: Python script used to extract protein-ligand contacts within a
+  5.5 Angstrom cutoff around the ligand throughout the simulation trajectories.
 
-- Min–max normalized **atomic number**
-- Scaled **explicit degree** (value/3)
-- Aromaticity (0 = no, 1 = yes)
-- Scaled explicit valence (value/4)
-- Hybridization encoded as:  
-  - sp = 0, sp² = 0.5, sp³ = 1
+## Dependencies
 
-### Bond Features
+The workflow requires Python and the following packages:
 
-For each covalent bond (duplicated A→B and B→A):
-
-- Min–max normalized **bond length**
-- Bond type: single = 1, double = 2, aromatic = 1.5 (then scaled)
-- Conjugation state (0 = no, 1 = yes)
-- Ring size feature: encoded from 0 (no ring) to 1 (large/other rings), with specific values for 4–8-membered rings.
-
----
-
-## 3. Model Performance
-
-On the **stratified blind test set (20% of the curated dataset)**, the MPNN achieved:
-
-- **Accuracy:** 91.0 ± 1.2%  
-- **F1-score:** 84 ± 2.3%  
-- **AUC (ROC):** 0.962 ± 0.2  
-
-These metrics demonstrate that the graph neural network can reliably distinguish **active vs inactive Nsp13 inhibitors** based on molecular structure alone.
-
-The trained model was subsequently applied to a virtual library of **1,172,240 commercial drug-like compounds**, from which it identified **1,866 candidate inhibitors** for further docking and MD-based evaluation.
-
----
-## 4. Repository Contents
-
-- **`UMPNN.py`** – Main training and evaluation script implementing:
-  - `MolecularDataset` for SMILES → graph conversion
-  - `InteractionNetwork` architecture (EdgeBlock, NodeBlock, GlobalBlock)
-  - `GNNTrainer` class for k-fold cross-validation, model training, and evaluation
-  - Blind-set evaluation and plotting utilities (confusion matrix, ROC curve)
-
-- **`combined_decoy_EC50_cleaned.csv`** – Curated training dataset containing:
-  - `SMILES`
-  - `Title`
-  - `Actividad` (binary activity label)
-
-- **`blind_compounds.csv`** – Stratified blind test set with the same columns as the training dataset.
-
-- **`total_tested.csv`** – Experimental results for the 75 compounds tested in the Midwest AViDD SARS-CoV-2 **Nsp13 inhibitor discovery campaign**.
-
----
-
-## 5. Simulation Files
-
-The archive **`Simulations.zip`** contains the input files, scripts, and representative outputs required to reproduce the molecular dynamics simulations and analyses reported in this work.
-
-### Contents
-
-1. **`System-prep-for-sim/`**  
-   Directory containing the parameter files and initial coordinate files used to build the simulation systems.  
-   It also includes the preparation workflow used to generate the final simulation systems starting from the docked poses.
-
-2. **`DBSCAN-clustering.in`**  
-   Input script for **CPPTRAJ** used to perform DBSCAN hierarchical clustering in order to classify the dominant conformational states observed during the simulations.
-
-3. **`DBSCAN_representative_39XX.pdb`**  
-   Representative structures obtained from the DBSCAN clustering analysis for the two primary hit compounds identified in this study.
-
-4. **`FINAL_DECOMP_MMGBSA_39XX.dat`**  
-   Per-residue **MM/GBSA energy decomposition** results derived from the analyzed trajectories of the two hit systems.
-
-5. **`mmpbsa.in`** and **`mmpbsa_recipe.txt`**  
-   Input configuration and protocol used to perform **MM/GBSA calculations in AMBER**, following the procedure described in `mmpbsa_recipe.txt`.
-
-6. **`contacts.py`**  
-   Python script used to extract **protein–ligand contacts within a 5.5 Å cutoff** around the ligand throughout the simulation trajectories.
----
-
-## 6. Dependencies
-
-The code is written in Python and uses:
-
-- `python >= 3.8`
-- `pytorch`
+- `torch`
 - `torch-geometric`
 - `torch-scatter`
 - `rdkit`
@@ -172,26 +154,25 @@ The code is written in Python and uses:
 - `matplotlib`
 - `tqdm`
 
-Install with `conda` or `pip` as appropriate, making sure that your `torch-geometric` version matches the installed PyTorch and CUDA.
+Install PyTorch, PyTorch Geometric, and `torch-scatter` using versions that are
+compatible with the available CUDA or CPU environment.
 
----
+## Usage
 
-## 7. Usage for blind test prediction
+Run from inside this folder:
 
-1. Place the CSV files in the working directory:
+```bash
+python UMPNN.py
+```
 
-   - `combined_decoy_EC50_cleaned.csv`
-   - `blind_compounds.csv`
+The script expects `training_dataset.csv` to be present in the same directory. It
+will create `Plots/` automatically.
 
-   Each must contain at least:
+## Notes
 
-   - `SMILES` – canonical SMILES string  
-   - `Title` – compound identifier  
-   - `Actividad` – 0 (inactive) or 1 (active)
-
-2. Run the training and blind-set evaluation:
-
-   ```bash
-   python UMPNN.py
-
-
+- The scaffold split is generated at runtime from `training_dataset.csv`.
+- Molecules sharing the same Bemis-Murcko scaffold are kept in the same split.
+- The model is trained on the scaffold-training subset and evaluated on the
+  held-out scaffold-test subset.
+- `total_tested.csv` is included as the experimental follow-up testing table and
+  is not required for training the model.
